@@ -105,15 +105,17 @@ function initBotConversation() {
                             jsonWebToken: jsonWebToken,
 
                             // Use the following activity to proactively invoke a bot scenario
-                            /*
+                           
                             triggeredScenario: {
+                                trigger: "toc_navigation"
+                               /*
                                 trigger: "{scenario_id}",
                                 args: {
                                     myVar1: "{custom_arg_1}",
                                     myVar2: "{custom_arg_2}"
-                                }
+                                } */
                             }
-                            */
+                            
                         }
                     }
                 }
@@ -133,7 +135,46 @@ function initBotConversation() {
         }
         return next(action);
     }}});
+
+    // hawo: Added middleware to disable card if they are not the most recent one
+var attachmentMiddleware = function () {
+    return function (next) {
+        return function (card) {
+            var attachment = card.attachment;
+            var activities = store.getState().activities;
+            var messageActivities = activities.filter(function (activity) { return activity.type === 'message'; });
+            var recentBotMessage = messageActivities.pop() === card.activity;
+
+            switch (attachment.contentType) {
+                case 'application/vnd.microsoft.card.adaptive':
+                    return window.React.createElement(
+                        window.WebChat.Components.AdaptiveCardContent,
+                        {
+                            actionPerformedClassName: 'card__action--performed',
+                            content: attachment.content,
+                            disabled: !recentBotMessage
+                        }
+                    );
+
+                case 'application/vnd.microsoft.card.hero':
+                    return window.React.createElement(
+                        window.WebChat.Components.HeroCardContent,
+                        {
+                            actionPerformedClassName: 'card__action--performed',
+                            content: attachment.content,
+                            disabled: !recentBotMessage
+                        }
+                    );
+
+                default:
+                    return next(card);
+            };
+        };
+    };
+};
+
     const webchatOptions = {
+        attachmentMiddleware: attachmentMiddleware,
         directLine: botConnection,
         styleOptions: styleOptions,
         store: store,
